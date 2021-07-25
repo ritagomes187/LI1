@@ -1,0 +1,281 @@
+module Tarefa2_2019li1g044 where
+
+import LI11920
+import Tarefa0_2019li1g044
+import Tarefa1_2019li1g044
+--import Data.Angle
+
+-- * Testes
+
+-- | Testes unitários da Tarefa 2.Tarefa0_2019li1g044
+--
+-- Cada teste é um triplo (/identificador do 'Jogador'/,/'Jogada' a efetuar/,/'Estado' anterior/).
+testesT2 :: [(Int,Jogada,Estado)]
+testesT2 = [(0,(Movimenta B),(Estado [[Recta Terra 0, Rampa Terra 0 2, Rampa Terra 2 0], [Recta Terra 0, Recta Terra 0, Recta Terra 0]] [(Jogador 0 2 1 3 (Chao True))])),(0,(Movimenta C),(Estado [[Recta Terra 0, Rampa Terra 0 2, Rampa Terra 2 0], [Recta Terra 0, Recta Terra 0, Recta Terra 0]] [(Jogador 1 2 1 3 (Chao False))])),(2,(Movimenta C),(Estado (gera 4 10 1) [(Jogador 3 7 1 3 (Chao False)),(Jogador 2 2.5 1 5 (Chao True)),(Jogador 1 5 1 0 (Chao True))]))]
+
+
+-- * Funções principais da Tarefa 2.
+
+-- | Efetua uma jogada.
+jogada :: Int -- ^ O identificador do 'Jogador' que efetua a jogada.
+       -> Jogada -- ^ A 'Jogada' a efetuar.
+       -> Estado -- ^ O 'Estado' anterior.
+       -> Estado -- ^ O 'Estado' resultante após o jogador efetuar a jogada.
+jogada jg jo e = resolve_jogada jg jo (get_jogador jg (get_listajg e)) e
+
+
+-- | Converte radianos em graus 
+graus :: Double -> Double
+graus a = a*180/pi
+
+-- | Calcula a pista em que um jogador se encontra
+pista :: Jogador -> Int 
+pista (Jogador p _ _ _ _) = p 
+
+-- | Calcula a distancia percorrida no eixo xx
+dist :: Jogador -> Double
+dist (Jogador _ d _ _ _) = d
+
+-- | Calcula a velocidade de um jogador
+v :: Jogador -> Double 
+v (Jogador _ _ v _ _) = v
+
+-- | Calcula o numero de colas de um jogador
+cola :: Jogador -> Int
+cola (Jogador _ _ _ c _) = c
+
+-- | Dado um jogador devolve o seu estado
+j_estado :: Jogador -> EstadoJogador
+j_estado (Jogador _ _ _ _ e) = e 
+
+-- | Funcao que testa se um jogador esta morto
+morto :: EstadoJogador -> Bool
+morto (Morto _) = True 
+morto _ = False 
+
+-- | Funcao que testa de um jogador esta no chao
+chao :: EstadoJogador -> Bool
+chao (Chao _) = True 
+chao _ = False
+
+-- | Funcao que testa de um jogador esta no ar
+ar :: EstadoJogador -> Bool
+ar (Ar _ _ _) = True 
+ar _ = False
+
+-- | Funcao que devolve a inclinacao de um jogador dado o seu estado, caso este esteja no ar
+inclinacao :: EstadoJogador -> Double
+inclinacao (Ar _ i _) = i
+
+-- | Funcao que teste se uma dada inclinacao e valida, ie se pertence ao intervalo [-90, 90]
+inclinacao_valida :: Double -> Bool
+inclinacao_valida i = i > (-90) && i < 90 
+
+-- | Devolve a lista com as posicoes ocupadas, sendo que uma posicao e do tipo (int, Int) = (pista, dist)
+p_ocupdas :: [Jogador] -> [(Int, Double)]
+p_ocupdas [] = []
+p_ocupdas ((Jogador p d _ _ _):js) = (p,d):(p_ocupdas js)
+
+-- | Testa se uma peca esta ocupada, dadas as suas coordenadas (pista e distancia em relacao ao eixo x)
+ocupada :: (Int, Int) -> [(Int, Int)] -> Bool
+ocupada p l = elem p l 
+
+-- | Dado o indice do joagador, insere o na lista de jogadores
+insere_jog :: Int -> Jogador -> [Jogador] -> [Jogador]
+insere_jog i j (x:xs) | i == 0 = [j] ++ (x:xs)
+                      | otherwise = insere_jog (i-1) j xs 
+
+-- | Devolve a inclinacao, caso esta seja valida. Caso contrario devolve 90 ou -90
+valida_inclinacao :: Double -> Double
+valida_inclinacao i | i <= -90 = -90.0
+                    | i >= 90 = 90.0  
+                    | otherwise = i
+
+-- | Dado um estado devolve a lista de jogadores
+get_listajg:: Estado -> [Jogador]
+get_listajg (Estado _ jg) = jg
+
+-- | Dado um estado devolve o mapa 
+get_mapa:: Estado -> Mapa
+get_mapa (Estado m _) = m
+
+-- | Dado um indice devolve o jogador nesse indice
+get_jogador:: Int -> [Jogador] -> Jogador
+get_jogador pl l = l !! pl
+
+-- | Altera o parametro chao do jogador
+altera_chao :: EstadoJogador-> Bool-> EstadoJogador
+altera_chao (Chao v) b = (Chao b)
+altera_chao e _ = e 
+
+-- | Altera o valor da inclinacao quando o jogador esta no ar
+atualiza_inclinacao:: EstadoJogador -> Double -> EstadoJogador
+atualiza_inclinacao (Ar a i g) d = (Ar a (valida_inclinacao (i+d)) g)
+--atualiza_inclinacao _ d = error "O jogador nao esta no chao"  -- mudar
+
+-- | Atualiza um jogador numa lista de jogadores
+atualiza_jog:: Int -> Jogador -> [Jogador] -> [Jogador]
+atualiza_jog i nj j = atualizaIndiceLista i nj j
+
+-- | Atualiza a lista de jogadores de um dado estado
+atualiza_estado_js:: Estado -> [Jogador] -> Estado
+atualiza_estado_js (Estado m j) j' = (Estado m j')
+
+-- | Atualiza o mapa de um dado estado
+atualiza_estado_mapa:: Estado -> Mapa -> Estado
+atualiza_estado_mapa (Estado m l) m' = (Estado m' l)
+ 
+-- | Atualiza o estado de um jogador
+atualiza_estado_jog :: Jogador -> EstadoJogador -> Jogador
+atualiza_estado_jog (Jogador p d v c e) e' = (Jogador p d v c e')
+
+-- | Atualiza o booleano relativo ao parametro chao do jogador
+atualiza_jog_chao:: Jogador -> Bool -> Jogador 
+atualiza_jog_chao j b = atualiza_estado_jog j estado
+                          where estado = altera_chao (j_estado j) b
+
+-- | Atualiza o paramrtro ar do jogador
+atualiza_jog_ar :: Jogador -> Peca -> Jogador
+atualiza_jog_ar (Jogador p d v c e) peca = atualiza_estado_jog j estado
+                                    where alt =  calcula_altura d peca
+                                          inc = calcula_inclinacao peca
+                                          estado = (Ar alt inc 0)
+                                          j = (Jogador p d v c e)
+
+-- | Atualiza o parametro inclinacao do jogador, quando este se encontra no ar 
+atualiza_jog_inclinacao:: Jogador -> Double -> Jogador 
+atualiza_jog_inclinacao j b = atualiza_estado_jog j estado
+                                where estado = atualiza_inclinacao (j_estado j) b
+
+-- | Atualiza o estado do jogador para morto e inicializa o timeout a 1.0
+atualiza_jog_morto::Jogador -> Jogador
+atualiza_jog_morto j = atualiza_estado_jog j estado
+                        where estado = (Morto 1.0)
+
+-- | Atualiza a pista em que o jogador se encontra
+atualiza_jog_pista :: Jogador -> Int -> Jogador
+atualiza_jog_pista (Jogador p d v c e) i = (Jogador (p+i) d v c e)
+
+-- | Testa se a peca em que o jogador esta o permite disparar cola
+-- | ie, se nao se encontra na primeria peca
+testa_posicao :: Double -> Bool
+testa_posicao d = d >= 1
+
+
+-- | Calcula a inclinacao de uma peça
+calcula_inclinacao :: Peca -> Double 
+calcula_inclinacao (Recta _ _) = 0
+calcula_inclinacao (Rampa _ hi hf) = graus $ atan $ fromIntegral (hf-hi)
+
+
+-- | Calcula a altura de um jogador
+calcula_altura :: Double -> Peca -> Double
+calcula_altura d (Recta p h) = fromIntegral h
+calcula_altura d (Rampa p hi hf) = tan(calcula_inclinacao (Rampa p hi hf)) * dist + fromIntegral hi 
+                                        where dist = decimal d
+-- acabar 
+decimal x = snd $ properFraction x 
+
+-- | retorna um Int -> caso 0 pode mudar3333333333333333333333333333333
+-- |                -> caso 1 muda de peca mais alta para mais baixa -> Ar
+-- |                -> caso 2 muda de peca mais baixa para mais alta -> Morto 
+compara_alturas :: Int -> Double -> Int -> Mapa -> Int
+compara_alturas p d mov m | abs(calcula_altura d p_actual - calcula_altura d p_nova) <= 0.2 = 0
+                          | calcula_altura d p_actual > calcula_altura d p_nova = 1
+                          | calcula_altura d p_actual < calcula_altura d p_nova = 2
+                            where p_actual = encontraPosicaoMatriz (p, ceiling d) m
+                                  p_nova = encontraPosicaoMatriz (p+mov, ceiling d) m
+
+-- | Dada a posicao de uma peça no mapa (linha, coluna), a funcao devolve essa peça
+get_peca ::(Int,Int) -> Mapa -> Peca
+get_peca (a,b) m = encontraPosicaoMatriz (a,b) m
+
+-- | Altera o piso de uma peça para COla
+altera_peca_cola:: Peca -> Peca
+altera_peca_cola (Recta p i) = (Recta Cola i)
+altera_peca_cola (Rampa p i1 i2) = (Rampa Cola i1 i2)
+
+-- | Devolve o jogador apos um disparo de cola, ie, o numero de municoes diminui se este poder disparar, caso contrario
+-- | o estado mantem se 
+atualiza_jog_cola :: Jogador -> Jogador
+atualiza_jog_cola (Jogador p d v c e) | chao e && testa_posicao d && c > 0 = (Jogador p d v (c-1) e)
+                                      | otherwise = (Jogador p d v c e)
+
+-- | Atualiza o mapa apos uma jogada de cola, ie, altera o piso da peca anterior para cola
+atualiza_mapa_cola :: Mapa -> Jogador -> Mapa
+atualiza_mapa_cola m (Jogador p d _ _ _) = n_map
+                                     where peca = get_peca (p,(round d)-1) m -- vai buscar a peca
+                                           n_peca = altera_peca_cola peca  -- altera a peca 
+                                           n_map = atualizaPosicaoMatriz (p,(ceiling d)-1) n_peca m -- insere a peca
+
+-- | Atualiza a lista de jogadores apos uma jogada de cima/baixo
+-- i == -1 move para cima
+-- i == 1 mpve para baixo
+atualiza_ljogs_cima_baixo::Int -> Int -> Estado -> Estado
+atualiza_ljogs_cima_baixo j i (Estado m l) = (Estado m n_jogadores)
+                        where jog = encontraIndiceLista j l
+                              n_jog = atualiza_jog_pista jog i
+                              n_jogadores = atualizaIndiceLista j n_jog l
+
+-- | Atualiza a lista de jogadores apos uma jogada de cima/baixo quando o jogador esta no ar
+atualiza_ljogs_cima_baixo_ar::Int -> Int-> Int -> Double -> Estado -> Estado
+atualiza_ljogs_cima_baixo_ar j i p dt (Estado m l) = (Estado m n_jogadores)
+                                        where jog = encontraIndiceLista j l
+                                              n_jog = atualiza_jog_pista jog i
+                                              p_ant =  get_peca (p,ceiling dt) m       
+                                              n_jog1 = atualiza_jog_ar n_jog p_ant
+                                              n_jogadores = atualizaIndiceLista j n_jog l
+
+-- | Atualiza a lista de jogadores apos uma jogada de cima/baixo, qunado o jogador morre
+atualiza_ljogs_cima_baixoMorto::Int -> Estado -> Estado
+atualiza_ljogs_cima_baixoMorto j (Estado m l) = (Estado m n_jogadores)
+                            where jog = encontraIndiceLista j l
+                                  n_jog = atualiza_jog_morto jog
+                                  n_jogadores = atualizaIndiceLista j n_jog l
+
+
+-- | Testa se o jogador pode mudar de pista 
+testa_cima_baixo :: Int -> Jogador -> Direcao -> Estado -> Estado
+testa_cima_baixo i (Jogador p dt v c e) d es | (d == C && p == 0) = es -- mover para cima na primeira pista
+                                           | (d == B && p == fst (dimensaoMatriz (get_mapa es))) = es -- mover para baixo na ultima pista
+                                         | (d== C && compara_alturas p dt (-1) (get_mapa es) == 0) = atualiza_ljogs_cima_baixo i (-1) es -- mover para cima com sucesso
+                                         | (d== B && compara_alturas p dt 1 (get_mapa es) == 0) = atualiza_ljogs_cima_baixo i 1 es -- mover para baixo com sucesso
+                                           | (d== C && compara_alturas p dt (-1) (get_mapa es) == 1) = atualiza_ljogs_cima_baixo_ar i (-1) p dt es -- mover para cima e fica no Ar
+                                         | (d== B && compara_alturas p dt 1 (get_mapa es) == 1) = atualiza_ljogs_cima_baixo_ar i 1 p dt es -- mover para baixo e fica no Ar
+                                         | (d== C && compara_alturas p dt (-1) (get_mapa es) == 2) = atualiza_ljogs_cima_baixoMorto i es -- mover para cima e ficar Morto
+                                           | (d== B && compara_alturas p dt 1 (get_mapa es) == 2) = atualiza_ljogs_cima_baixoMorto i es -- mover para baixo e ficar Morto 
+
+
+-- | Devolve o estado do jogo apos uma jogada de aceleracao / desaceleracao
+resolve_acelera_des :: Int -> Jogador -> Estado -> Bool -> Estado
+resolve_acelera_des i j e b = atualiza_estado_js e n_lista
+                             where n_jog = atualiza_jog_chao j b
+                                   n_lista = atualiza_jog i n_jog (get_listajg e)
+
+-- | Atualiza o estado do jogo apos uma jogada de mudanca de direcao para a esq/dir
+resolve_esq_dir :: Int -> Jogador -> Estado -> Double -> Estado
+resolve_esq_dir i j e d = atualiza_estado_js e n_lista
+                          where n_jog = atualiza_jog_inclinacao j d
+                                n_lista = atualiza_jog i n_jog (get_listajg e)
+
+-- | Atualiza o estado apos uma jogada de disparo de cola 
+resolve_disparo :: Int -> Jogador -> Estado -> Estado
+resolve_disparo i j e = (Estado n_mapa n_lista)
+                       where n_jog = atualiza_jog_cola j -- actualiza jogador
+                             n_lista = atualiza_jog i n_jog (get_listajg e) -- actualiza lista de jogadores
+                             n_mapa = atualiza_mapa_cola (get_mapa e) j -- actualiza mapa
+
+-- | Atualiza o estado do jogo apos uma jogada de mudanca de direcao para cima / baixo
+resolve_cima_baixo:: Int -> Jogador -> Direcao -> Estado -> Estado
+resolve_cima_baixo i j d e  | chao (j_estado j) = testa_cima_baixo i j d e
+                            | otherwise = e
+
+-- | Devolve o estado do jogo apos uma jogada
+resolve_jogada :: Int -> Jogada -> Jogador -> Estado -> Estado
+resolve_jogada j (Movimenta d) jg e  | d == C = resolve_cima_baixo j jg d e
+                                   | d == D = resolve_esq_dir j jg e (15)
+                                   | d == B = resolve_cima_baixo j jg d e
+                                   | d == E = resolve_esq_dir j jg e (-15)
+resolve_jogada j (Acelera) jg e = resolve_acelera_des j jg e True
+resolve_jogada j (Desacelera) jg e = resolve_acelera_des j jg e False
+resolve_jogada j (Dispara) jg e = resolve_disparo j jg e
